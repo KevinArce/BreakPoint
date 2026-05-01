@@ -26,8 +26,8 @@ Thank you for your interest in contributing to BreakPoint! This guide will help 
 
 ```bash
 # Clone the repository
-git clone https://github.com/YOUR_ORG/breakpoint.git
-cd breakpoint
+git clone https://github.com/KevinArce/BreakPoint.git
+cd BreakPoint
 
 # Install dependencies
 pnpm install
@@ -99,7 +99,7 @@ To test the Probot app against a real GitHub repository:
 
 ### 1. Register a GitHub App
 
-Follow the [GitHub App Registration](README.md#github-app-registration) instructions in the README. Use a test organization or personal repository.
+Follow the [standalone GitHub App registration](README.md#standalone-github-app-registration) instructions in the README. Use a test organization or personal repository.
 
 ### 2. Set up webhook proxying
 
@@ -158,7 +158,7 @@ Open a PR on the repository where the app is installed. The smee proxy forwards 
 ### General
 
 - No `TODO` stubs or placeholder implementations in production code.
-- Never log secrets, especially `PRIVATE_KEY`.
+- Never log secrets, especially `PRIVATE_KEY` in standalone mode and third-party scanner tokens such as `SNYK_TOKEN`.
 - Keep `src/index.ts` small — logic belongs in handlers and libraries.
 
 ## Adding a Quality Gate

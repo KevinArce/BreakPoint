@@ -1,6 +1,6 @@
 import type { QualityGateResult } from '../../types.js'
 import { execFile } from 'node:child_process'
-import { writeFile } from 'node:fs/promises'
+import { mkdir, writeFile } from 'node:fs/promises'
 import { existsSync } from 'node:fs'
 import { join } from 'node:path'
 
@@ -69,23 +69,33 @@ export async function runTestImpactGate(options: {
       annotations: [],
     }
 
-    await writeFile(
-      join(outputDir, 'quality-test-impact.json'),
-      JSON.stringify(gateResult, null, 2),
-      'utf-8',
-    )
+    await writeGateResult(outputDir, gateResult)
 
     return gateResult
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error)
-    return {
+    const warning: QualityGateResult = {
       id: 'test-impact',
       name: 'Test Impact',
       status: 'warning',
       summary: `Test impact analysis failed: ${message}`,
       annotations: [],
     }
+    await writeGateResult(outputDir, warning)
+    return warning
   }
+}
+
+async function writeGateResult(
+  outputDir: string,
+  result: QualityGateResult,
+): Promise<void> {
+  await mkdir(outputDir, { recursive: true })
+  await writeFile(
+    join(outputDir, 'quality-test-impact.json'),
+    JSON.stringify(result, null, 2),
+    'utf-8',
+  )
 }
 
 async function detectStrategy(projectDir: string): Promise<Strategy> {

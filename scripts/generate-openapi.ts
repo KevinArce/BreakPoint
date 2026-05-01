@@ -55,8 +55,8 @@ async function generateViaZod(): Promise<string> {
       'npx',
       ['tsx', '-e', `
         const { OpenAPIRegistry, OpenApiGeneratorV3 } = require('@asteasolutions/zod-to-openapi');
-        // This is a stub — the actual project would import its Zod schemas
-        // and register them with the OpenAPIRegistry.
+        // Projects with Zod schemas should replace this starter registry with
+        // imports from their own schema modules.
         const registry = new OpenAPIRegistry();
         const generator = new OpenApiGeneratorV3(registry.definitions);
         const doc = generator.generateDocument({

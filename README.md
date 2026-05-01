@@ -6,7 +6,8 @@ BreakPoint is a TypeScript [Probot](https://probot.github.io/) GitHub App that e
 
 - [Architecture](#architecture)
 - [Quick Start](#quick-start)
-- [GitHub App Registration](#github-app-registration)
+- [Deployment Modes](#deployment-modes)
+- [Standalone GitHub App Registration](#standalone-github-app-registration)
 - [Permissions and Webhook Events](#permissions-and-webhook-events)
 - [Secrets](#secrets)
 - [Configuration Reference](#configuration-reference)
@@ -65,43 +66,86 @@ The Probot app supports two deployment modes:
 
 ## Quick Start
 
-Use a test repository to try BreakPoint before deploying to production.
+Use a test repository to try BreakPoint before deploying it broadly. The recommended first setup is **GitHub Actions mode**, which does not require hosting a server or creating GitHub App private-key secrets.
 
 ### 1. Fork or clone this repository
 
 ```bash
-git clone https://github.com/YOUR_ORG/breakpoint.git
-cd breakpoint
+git clone https://github.com/KevinArce/BreakPoint.git
+cd BreakPoint
 pnpm install
 ```
 
-### 2. Register a GitHub App
+### 2. Make sure your API project can generate OpenAPI
 
-See [GitHub App Registration](#github-app-registration) below.
+Your target repository needs a script that writes a valid OpenAPI JSON file. By default BreakPoint runs:
 
-### 3. Add secrets to the test repository
+```bash
+pnpm run generate:openapi
+```
 
-Add `APP_ID` and `PRIVATE_KEY` as repository secrets.
+and expects:
 
-### 4. Copy the workflow
+```text
+openapi/schema.json
+```
 
-Copy `.github/workflows/api-contract.yml` and `.github/actions/api-contract-probot/` into your test repository.
+You can change both values in `.github/api-contract.yml`.
 
-### 5. Create a PR with an API change
+### 3. Add the workflow
+
+Copy `.github/workflows/api-contract.yml` into your target repository. During local development of this repository, it uses the local composite action at `.github/actions/api-contract-probot`.
+
+After publishing a release, target repositories should reference the released action instead of copying the action directory:
+
+```yaml
+uses: KevinArce/BreakPoint/.github/actions/api-contract-probot@v0.1.0
+```
+
+### 4. Create a PR with an API change
 
 Add or remove a route, change a request or response schema, then open a PR targeting `main`. BreakPoint will post a Check Run and a PR comment summarizing the change.
 
-### 6. (Optional) Add config
+### 5. (Optional) Add config
 
 Create `.github/api-contract.yml` to customize behavior. If the file is missing, BreakPoint uses [documented defaults](#configuration-reference).
 
-## GitHub App Registration
+## Deployment Modes
+
+### GitHub Actions Mode
+
+This is the default and recommended mode.
+
+- No external server is required.
+- No GitHub App registration is required.
+- No `APP_ID` or `PRIVATE_KEY` repository secrets are required.
+- The Probot app runs through `@probot/adapter-github-actions`.
+- Authentication uses the workflow-provided `GITHUB_TOKEN`.
+
+Use this mode first.
+
+### Standalone GitHub App Server Mode
+
+Use this only when you want BreakPoint to run as a persistent webhook server on a host such as Fly.io, Railway, or your own infrastructure.
+
+Standalone mode requires:
+
+- A registered GitHub App.
+- `APP_ID`.
+- `PRIVATE_KEY`.
+- `WEBHOOK_SECRET`.
+- A public webhook URL.
+- A compute strategy for producing `PR_SCHEMA_PATH` and `BASE_SCHEMA_PATH`, or additional server-side logic to download workflow artifacts.
+
+The current implementation is optimized for Actions mode because schema generation happens inside CI.
+
+## Standalone GitHub App Registration
 
 1. Go to **Settings → Developer settings → GitHub Apps → New GitHub App**.
 2. Set **GitHub App name** to something unique (e.g., `breakpoint-yourorg`).
 3. Set **Homepage URL** to your repository URL.
-4. **Webhook URL**: Leave blank or set to `https://example.com` if using Actions-only mode. Set to your server URL if using standalone mode.
-5. **Webhook secret**: Generate a random secret and save it. Only needed for standalone mode.
+4. **Webhook URL**: Set this to your local tunnel URL while developing, or your hosted server URL in production.
+5. **Webhook secret**: Generate a random secret and save it.
 6. Under **Permissions**, set:
    - **Repository → Checks**: Read & Write
    - **Repository → Contents**: Read-only
@@ -144,11 +188,12 @@ The workflow does **not** collect telemetry, phone home, or transmit data outsid
 
 | Secret | Required | Description |
 | --- | --- | --- |
-| `APP_ID` | Yes | The numeric ID of your registered GitHub App. |
-| `PRIVATE_KEY` | Yes | The PEM-encoded private key generated during app registration. **Never log or echo this value.** |
+| `APP_ID` | Standalone only | The numeric ID of your registered GitHub App. Not used in Actions mode. |
+| `PRIVATE_KEY` | Standalone only | The PEM-encoded private key generated during app registration. Not used in Actions mode. **Never log or echo this value.** |
+| `WEBHOOK_SECRET` | Standalone only | Secret used to validate webhook deliveries in server mode. |
 | `SNYK_TOKEN` | No | Required only when `quality_gates.dependency_risk.snyk.enabled` is `true`. If the token is missing, Snyk is skipped with a warning — it never fails the build or leaks the token. |
 
-Secrets are passed via environment variables and are **never printed to logs**. The composite action masks `PRIVATE_KEY` using `::add-mask::`.
+In Actions mode, the composite action only needs the built-in `GITHUB_TOKEN` plus schema file paths produced by the workflow.
 
 ## Configuration Reference
 
@@ -279,12 +324,14 @@ All quality gates are **optional** and **disabled by default** (except `dependen
 ### Setup
 
 ```bash
-git clone https://github.com/YOUR_ORG/breakpoint.git
-cd breakpoint
+git clone https://github.com/KevinArce/BreakPoint.git
+cd BreakPoint
 pnpm install
 ```
 
 ### Running the Probot app locally
+
+Local webhook development uses standalone GitHub App server mode. It is useful for handler development, but the normal CI path is still GitHub Actions mode.
 
 1. Install [smee.io](https://smee.io/) for webhook proxying:
 
@@ -310,6 +357,8 @@ pnpm install
 
 4. Open a PR on a repository where the app is installed. The smee proxy forwards the webhook to your local instance.
 
+For local webhook tests that should complete a full report, you must also provide `PR_SCHEMA_PATH` and `BASE_SCHEMA_PATH` pointing to generated schema files that exist on your machine. In the default Actions mode, the workflow creates these files automatically.
+
 ## Testing
 
 ```bash
@@ -325,15 +374,15 @@ All tests use [Vitest](https://vitest.dev/) and can be run without network acces
 
 ### Check Run does not appear
 
-- Verify the GitHub App has **Checks: Read & Write** permission.
-- Verify the app is installed on the target repository.
 - Check the Actions workflow log for errors.
-- Ensure `APP_ID` and `PRIVATE_KEY` secrets are set and correct.
+- In Actions mode, ensure the workflow has `checks: write`.
+- In standalone mode, verify the GitHub App has **Checks: Read & Write** permission and is installed on the target repository.
+- In standalone mode, ensure `APP_ID`, `PRIVATE_KEY`, and `WEBHOOK_SECRET` are set and correct.
 
 ### PR comment is not posted
 
-- Verify the GitHub App has **Pull requests: Read & Write** permission.
-- Ensure the workflow has `pull-requests: write` in its `permissions` block.
+- In Actions mode, ensure the workflow has `pull-requests: write`.
+- In standalone mode, verify the GitHub App has **Pull requests: Read & Write** permission.
 
 ### Config validation error in the PR comment
 

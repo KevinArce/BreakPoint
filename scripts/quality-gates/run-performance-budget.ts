@@ -5,7 +5,7 @@ const startCommand = process.env['PERF_START_COMMAND'] ?? 'start'
 const warmupSeconds = parseInt(process.env['PERF_WARMUP_SECONDS'] ?? '10', 10)
 const threshold = parseInt(process.env['PERF_REGRESSION_THRESHOLD'] ?? '10', 10)
 const outputDir = process.env['QUALITY_REPORT_DIR'] ?? 'quality-reports'
-const projectDir = process.cwd()
+const projectDir = process.env['PROJECT_DIR'] ?? process.cwd()
 
 // Parse endpoints from environment (JSON array)
 let endpoints: Array<{ method: string; path: string }> = []

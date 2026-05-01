@@ -45,6 +45,20 @@ describe('parseConfig', () => {
   })
 
   describe('partial overrides', () => {
+    it('accepts the unwrapped object returned by context.config', () => {
+      const result = parseConfig({
+        generate_script: 'build:openapi',
+        enforcement: {
+          allow_override_label: 'api-break-approved',
+        },
+      })
+      expect(result.success).toBe(true)
+      if (result.success) {
+        expect(result.config.generate_script).toBe('build:openapi')
+        expect(result.config.enforcement.allow_override_label).toBe('api-break-approved')
+      }
+    })
+
     it('merges partial enforcement overrides with defaults', () => {
       const result = parseConfig({
         'api-contract': {

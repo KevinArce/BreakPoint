@@ -106,12 +106,24 @@ export interface ConfigParseFailure {
 
 export type ConfigParseResult = ConfigParseSuccess | ConfigParseFailure
 
+function normalizeConfigInput(raw: unknown): unknown {
+  if (typeof raw !== 'object' || raw === null || Array.isArray(raw)) {
+    return raw ?? {}
+  }
+
+  if ('api-contract' in raw) {
+    return raw
+  }
+
+  return { 'api-contract': raw }
+}
+
 /**
  * Parses and validates a raw config object loaded from `.github/api-contract.yml`.
  * Returns either the validated config or a descriptive error.
  */
 export function parseConfig(raw: unknown): ConfigParseResult {
-  const result = apiContractConfigSchema.safeParse(raw ?? {})
+  const result = apiContractConfigSchema.safeParse(normalizeConfigInput(raw))
 
   if (!result.success) {
     const issues = result.error.issues

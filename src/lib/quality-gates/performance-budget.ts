@@ -1,6 +1,6 @@
 import type { QualityGateResult } from '../../types.js'
 import { execFile } from 'node:child_process'
-import { writeFile } from 'node:fs/promises'
+import { mkdir, writeFile } from 'node:fs/promises'
 import { join } from 'node:path'
 
 interface BenchmarkResult {
@@ -27,13 +27,15 @@ export async function runPerformanceBudgetGate(options: {
   const { endpoints, outputDir } = options
 
   if (endpoints.length === 0) {
-    return {
+    const skipped: QualityGateResult = {
       id: 'performance-budget',
       name: 'Performance Budget',
       status: 'skipped',
       summary: 'No endpoints configured for benchmarking.',
       annotations: [],
     }
+    await writeGateResult(outputDir, skipped)
+    return skipped
   }
 
   try {
@@ -51,23 +53,33 @@ export async function runPerformanceBudgetGate(options: {
       annotations: [],
     }
 
-    await writeFile(
-      join(outputDir, 'quality-performance-budget.json'),
-      JSON.stringify(gateResult, null, 2),
-      'utf-8',
-    )
+    await writeGateResult(outputDir, gateResult)
 
     return gateResult
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error)
-    return {
+    const warning: QualityGateResult = {
       id: 'performance-budget',
       name: 'Performance Budget',
       status: 'warning',
       summary: `Failed to run benchmark: ${message}`,
       annotations: [],
     }
+    await writeGateResult(outputDir, warning)
+    return warning
   }
+}
+
+async function writeGateResult(
+  outputDir: string,
+  result: QualityGateResult,
+): Promise<void> {
+  await mkdir(outputDir, { recursive: true })
+  await writeFile(
+    join(outputDir, 'quality-performance-budget.json'),
+    JSON.stringify(result, null, 2),
+    'utf-8',
+  )
 }
 
 function benchmarkEndpoint(method: string, path: string): Promise<BenchmarkResult> {

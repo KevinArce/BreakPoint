@@ -1,6 +1,7 @@
 import type { QualityGateResult } from '../../types.js'
 import { execFile } from 'node:child_process'
-import { writeFile } from 'node:fs/promises'
+import { existsSync } from 'node:fs'
+import { mkdir, writeFile } from 'node:fs/promises'
 import { join } from 'node:path'
 
 interface VulnerabilityCounts {
@@ -12,9 +13,20 @@ interface VulnerabilityCounts {
 }
 
 interface NpmAuditOutput {
+  error?: {
+    code?: string
+    summary?: string
+    detail?: string
+  }
   metadata?: {
     vulnerabilities?: Partial<VulnerabilityCounts>
   }
+  advisories?: Record<string, {
+    severity?: string
+  }>
+  vulnerabilities?: Record<string, {
+    severity?: string
+  }>
 }
 
 interface SnykOutput {
@@ -43,7 +55,7 @@ export async function runDependencyRiskGate(options: {
 
   // Run npm audit
   try {
-    const auditResult = await runNpmAudit(projectDir, npmAuditLevel)
+    const auditResult = await runPackageAudit(projectDir, npmAuditLevel)
     const counts = auditResult.counts
     totalVulns =
       (counts.info ?? 0) +
@@ -57,11 +69,11 @@ export async function runDependencyRiskGate(options: {
     }
 
     summaryParts.push(
-      `npm audit: ${totalVulns} vulnerabilities (${counts.critical ?? 0} critical, ${counts.high ?? 0} high, ${counts.moderate ?? 0} moderate, ${counts.low ?? 0} low)`,
+      `${auditResult.tool}: ${totalVulns} vulnerabilities (${counts.critical ?? 0} critical, ${counts.high ?? 0} high, ${counts.moderate ?? 0} moderate, ${counts.low ?? 0} low)`,
     )
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error)
-    summaryParts.push(`npm audit: error — ${message}`)
+    summaryParts.push(`dependency audit: warning — ${message}`)
     status = 'warning'
   }
 
@@ -102,6 +114,7 @@ export async function runDependencyRiskGate(options: {
   }
 
   // Write report
+  await mkdir(outputDir, { recursive: true })
   await writeFile(
     join(outputDir, 'quality-dependency-risk.json'),
     JSON.stringify(result, null, 2),
@@ -111,37 +124,120 @@ export async function runDependencyRiskGate(options: {
   return result
 }
 
-function runNpmAudit(
+function runPackageAudit(
   projectDir: string,
   auditLevel: string,
-): Promise<{ counts: Partial<VulnerabilityCounts>; failed: boolean }> {
+): Promise<{
+  tool: string
+  counts: Partial<VulnerabilityCounts>
+  failed: boolean
+}> {
+  const auditCommand = getAuditCommand(projectDir, auditLevel)
+
   return new Promise((resolve, reject) => {
     execFile(
-      'npm',
-      ['audit', '--json', `--audit-level=${auditLevel}`],
+      auditCommand.command,
+      auditCommand.args,
       { cwd: projectDir, maxBuffer: 10 * 1024 * 1024 },
-      (error, stdout) => {
-        // npm audit exits non-zero when vulnerabilities are found above threshold
-        const exitCode = error?.code
-        const failed = typeof exitCode === 'number' && exitCode > 0
-
+      (error, stdout, stderr) => {
         try {
           const output: unknown = JSON.parse(stdout || '{}')
           const auditOutput = output as NpmAuditOutput
-          const counts: Partial<VulnerabilityCounts> =
-            auditOutput.metadata?.vulnerabilities ?? {}
+          if (auditOutput.error) {
+            reject(new Error(auditOutput.error.summary ?? auditOutput.error.code ?? 'audit failed'))
+            return
+          }
 
-          resolve({ counts, failed })
+          const counts = extractVulnerabilityCounts(auditOutput)
+          const failed = hasSeverityAtOrAbove(counts, auditLevel)
+          resolve({ tool: auditCommand.name, counts, failed })
         } catch {
           if (error && !stdout) {
-            reject(new Error(`npm audit failed: ${error.message}`))
+            reject(new Error(`${auditCommand.name} failed: ${stderr.trim() || error.message}`))
           } else {
-            resolve({ counts: {}, failed: true })
+            resolve({ tool: auditCommand.name, counts: {}, failed: false })
           }
         }
       },
     )
   })
+}
+
+function getAuditCommand(
+  projectDir: string,
+  auditLevel: string,
+): { name: string; command: string; args: string[] } {
+  if (existsSync(join(projectDir, 'pnpm-lock.yaml'))) {
+    return {
+      name: 'pnpm audit',
+      command: 'pnpm',
+      args: ['audit', '--json', `--audit-level=${auditLevel}`],
+    }
+  }
+
+  return {
+    name: 'npm audit',
+    command: 'npm',
+    args: ['audit', '--json', `--audit-level=${auditLevel}`],
+  }
+}
+
+function extractVulnerabilityCounts(
+  auditOutput: NpmAuditOutput,
+): Partial<VulnerabilityCounts> {
+  if (auditOutput.metadata?.vulnerabilities) {
+    return auditOutput.metadata.vulnerabilities
+  }
+
+  const counts: VulnerabilityCounts = {
+    info: 0,
+    low: 0,
+    moderate: 0,
+    high: 0,
+    critical: 0,
+  }
+
+  const advisoryValues = Object.values(auditOutput.advisories ?? {})
+  const vulnerabilityValues = Object.values(auditOutput.vulnerabilities ?? {})
+
+  for (const item of [...advisoryValues, ...vulnerabilityValues]) {
+    const severity = item.severity
+    if (isVulnerabilitySeverity(severity)) {
+      counts[severity] += 1
+    }
+  }
+
+  return counts
+}
+
+function hasSeverityAtOrAbove(
+  counts: Partial<VulnerabilityCounts>,
+  threshold: string,
+): boolean {
+  const rank: Record<keyof VulnerabilityCounts, number> = {
+    info: 0,
+    low: 1,
+    moderate: 2,
+    high: 3,
+    critical: 4,
+  }
+
+  const thresholdRank = isVulnerabilitySeverity(threshold) ? rank[threshold] : rank.high
+
+  return Object.entries(counts).some(([severity, count]) => {
+    if (!isVulnerabilitySeverity(severity)) return false
+    return rank[severity] >= thresholdRank && (count ?? 0) > 0
+  })
+}
+
+function isVulnerabilitySeverity(
+  value: string | undefined,
+): value is keyof VulnerabilityCounts {
+  return value === 'info' ||
+    value === 'low' ||
+    value === 'moderate' ||
+    value === 'high' ||
+    value === 'critical'
 }
 
 function runSnyk(

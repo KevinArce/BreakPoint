@@ -22,9 +22,7 @@ export async function handleLabelOverride(
 
   // Load config to determine the override label
   const rawConfig: unknown = await context.config('api-contract.yml')
-  const configResult = parseConfig(
-    rawConfig ? { 'api-contract': rawConfig } : null,
-  )
+  const configResult = parseConfig(rawConfig)
 
   if (!configResult.success) {
     // Config is invalid; nothing to re-evaluate
@@ -71,7 +69,7 @@ export async function handleLabelOverride(
   let prVersion: string | undefined
 
   try {
-    const baseResponse = await context.octokit.repos.getContent(
+    const baseResponse = await context.octokit.rest.repos.getContent(
       context.repo({ path: config.version_file, ref: baseBranch }),
     )
     if ('content' in baseResponse.data && typeof baseResponse.data.content === 'string') {
@@ -87,7 +85,7 @@ export async function handleLabelOverride(
   }
 
   try {
-    const prResponse = await context.octokit.repos.getContent(
+    const prResponse = await context.octokit.rest.repos.getContent(
       context.repo({ path: config.version_file, ref: headSha }),
     )
     if ('content' in prResponse.data && typeof prResponse.data.content === 'string') {

@@ -1,0 +1,8 @@
+import { run } from 'probot'
+import app from './index.js'
+
+run(app).catch((error: unknown) => {
+  const message = error instanceof Error ? error.message : String(error)
+  console.error(message)
+  process.exit(1)
+})

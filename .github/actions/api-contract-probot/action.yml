@@ -24,21 +24,22 @@ runs:
   steps:
     - name: Validate required env vars
       shell: bash
+      env:
+        PR_SCHEMA_PATH_RESOLVED: ${{ inputs.pr-schema-path || env.PR_SCHEMA_PATH }}
+        BASE_SCHEMA_PATH_RESOLVED: ${{ inputs.base-schema-path || env.BASE_SCHEMA_PATH }}
       run: |
         if [ -z "$GITHUB_TOKEN" ]; then
           echo "::error::GITHUB_TOKEN is required"
           exit 1
         fi
-        if [ -z "$APP_ID" ]; then
-          echo "::error::APP_ID is required"
+        if [ -z "$PR_SCHEMA_PATH_RESOLVED" ]; then
+          echo "::error::pr-schema-path or PR_SCHEMA_PATH is required"
           exit 1
         fi
-        if [ -z "$PRIVATE_KEY" ]; then
-          echo "::error::PRIVATE_KEY is required"
+        if [ -z "$BASE_SCHEMA_PATH_RESOLVED" ]; then
+          echo "::error::base-schema-path or BASE_SCHEMA_PATH is required"
           exit 1
         fi
-        # Mask the private key to prevent accidental exposure
-        echo "::add-mask::$PRIVATE_KEY"
 
     - name: Setup Node.js
       uses: actions/setup-node@v4
@@ -57,20 +58,106 @@ runs:
           npm ci
         fi
 
+    - name: Read quality gate config
+      shell: bash
+      working-directory: ${{ github.action_path }}/../../..
+      env:
+        QUALITY_REPORT_DIR_INPUT: ${{ inputs.quality-report-dir || env.QUALITY_REPORT_DIR || 'quality-reports' }}
+      run: |
+        report_dir="$QUALITY_REPORT_DIR_INPUT"
+        if [[ "$report_dir" != /* ]]; then
+          report_dir="$GITHUB_WORKSPACE/$report_dir"
+        fi
+
+        mkdir -p "$report_dir"
+        echo "QUALITY_REPORT_DIR=$report_dir" >> "$GITHUB_ENV"
+        echo "PROJECT_DIR=$GITHUB_WORKSPACE" >> "$GITHUB_ENV"
+
+        ruby <<'RUBY' >> "$GITHUB_ENV"
+        require "json"
+        require "yaml"
+
+        config_path = File.join(ENV.fetch("GITHUB_WORKSPACE"), ".github", "api-contract.yml")
+        raw = File.exist?(config_path) ? (YAML.load_file(config_path) || {}) : {}
+        config = raw.fetch("api-contract", raw)
+        gates = config.fetch("quality_gates", {}) || {}
+
+        dead = gates.fetch("dead_code", {}) || {}
+        dep = gates.fetch("dependency_risk", {}) || {}
+        snyk = dep.fetch("snyk", {}) || {}
+        perf = gates.fetch("performance_budget", {}) || {}
+        impact = gates.fetch("test_impact", {}) || {}
+
+        puts "DEAD_CODE_ENABLED=#{dead.fetch("enabled", false)}"
+        puts "DEAD_CODE_TOOL=#{dead.fetch("tool", "knip")}"
+        puts "DEAD_CODE_MAX_FINDINGS=#{dead.fetch("max_findings", 0)}"
+        puts "DEAD_CODE_MODE=#{dead.fetch("mode", "warning")}"
+        puts "DEPENDENCY_RISK_ENABLED=#{dep.fetch("enabled", true)}"
+        puts "NPM_AUDIT_LEVEL=#{dep.fetch("npm_audit_level", "high")}"
+        puts "SNYK_ENABLED=#{snyk.fetch("enabled", false)}"
+        puts "SNYK_SEVERITY_THRESHOLD=#{snyk.fetch("severity_threshold", "high")}"
+        puts "PERFORMANCE_BUDGET_ENABLED=#{perf.fetch("enabled", false)}"
+        puts "PERF_START_COMMAND=#{perf.fetch("start_command", "start")}"
+        puts "PERF_WARMUP_SECONDS=#{perf.fetch("warmup_seconds", 10)}"
+        puts "PERF_REGRESSION_THRESHOLD=#{perf.fetch("regression_threshold_percent", 10)}"
+        puts "PERF_ENDPOINTS=#{JSON.generate(perf.fetch("endpoints", []))}"
+        puts "TEST_IMPACT_ENABLED=#{impact.fetch("enabled", false)}"
+        puts "TEST_IMPACT_STRATEGY=#{impact.fetch("strategy", "auto")}"
+        puts "TEST_IMPACT_FALLBACK=#{impact.fetch("fallback_to_full_suite", true)}"
+        puts "BASE_BRANCH=#{ENV["GITHUB_BASE_REF"] || config.fetch("base_branch", "main")}"
+        RUBY
+
+    - name: Run dependency risk gate
+      shell: bash
+      continue-on-error: true
+      working-directory: ${{ github.action_path }}/../../..
+      run: |
+        if [ "${DEPENDENCY_RISK_ENABLED:-true}" != "true" ]; then
+          echo "Dependency risk gate disabled"
+          exit 0
+        fi
+        npx tsx scripts/quality-gates/run-dependency-risk.ts
+
+    - name: Run dead code gate
+      shell: bash
+      continue-on-error: true
+      working-directory: ${{ github.action_path }}/../../..
+      run: |
+        if [ "${DEAD_CODE_ENABLED:-false}" != "true" ]; then
+          echo "Dead code gate disabled"
+          exit 0
+        fi
+        npx tsx scripts/quality-gates/run-dead-code.ts
+
+    - name: Run performance budget gate
+      shell: bash
+      continue-on-error: true
+      working-directory: ${{ github.action_path }}/../../..
+      run: |
+        if [ "${PERFORMANCE_BUDGET_ENABLED:-false}" != "true" ]; then
+          echo "Performance budget gate disabled"
+          exit 0
+        fi
+        npx tsx scripts/quality-gates/run-performance-budget.ts
+
+    - name: Run test impact gate
+      shell: bash
+      continue-on-error: true
+      working-directory: ${{ github.action_path }}/../../..
+      run: |
+        if [ "${TEST_IMPACT_ENABLED:-false}" != "true" ]; then
+          echo "Test impact gate disabled"
+          exit 0
+        fi
+        npx tsx scripts/quality-gates/run-test-impact.ts
+
     - name: Run Probot app
       shell: bash
       working-directory: ${{ github.action_path }}/../../..
       env:
         GITHUB_TOKEN: ${{ env.GITHUB_TOKEN }}
-        APP_ID: ${{ env.APP_ID }}
-        PRIVATE_KEY: ${{ env.PRIVATE_KEY }}
         PR_SCHEMA_PATH: ${{ inputs.pr-schema-path || env.PR_SCHEMA_PATH }}
         BASE_SCHEMA_PATH: ${{ inputs.base-schema-path || env.BASE_SCHEMA_PATH }}
-        QUALITY_REPORT_DIR: ${{ inputs.quality-report-dir || env.QUALITY_REPORT_DIR }}
         LOG_LEVEL: ${{ inputs.log-level }}
       run: |
-        npx tsx -e "
-          const { run } = require('@probot/adapter-github-actions');
-          const app = require('./src/index.ts').default;
-          run(app);
-        "
+        npx tsx src/actions-entrypoint.ts

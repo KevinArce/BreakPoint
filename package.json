@@ -9,7 +9,7 @@
   "engines": {
     "node": ">=20"
   },
-  "main": "dist/index.js",
+  "main": "dist/src/index.js",
   "files": [
     "dist/",
     "scripts/",
@@ -28,12 +28,12 @@
   ],
   "repository": {
     "type": "git",
-    "url": "https://github.com/YOUR_ORG/breakpoint.git"
+    "url": "https://github.com/KevinArce/BreakPoint.git"
   },
   "bugs": {
-    "url": "https://github.com/YOUR_ORG/breakpoint/issues"
+    "url": "https://github.com/KevinArce/BreakPoint/issues"
   },
-  "homepage": "https://github.com/YOUR_ORG/breakpoint#readme",
+  "homepage": "https://github.com/KevinArce/BreakPoint#readme",
   "scripts": {
     "build": "tsc",
     "typecheck": "tsc --noEmit",
@@ -41,13 +41,15 @@
     "test:watch": "vitest",
     "test:coverage": "vitest run --coverage",
     "lint": "tsc --noEmit",
-    "start": "tsx src/index.ts",
+    "start": "tsx src/server.ts",
+    "start:prod": "node dist/src/server.js",
+    "action": "tsx src/actions-entrypoint.ts",
     "generate:openapi": "tsx scripts/generate-openapi.ts"
   },
   "dependencies": {
-    "@probot/adapter-github-actions": "^4.0.0",
+    "@probot/adapter-github-actions": "^5.0.1",
     "openapi-diff": "^0.23.7",
-    "probot": "^13.4.3",
+    "probot": "^14.3.2",
     "semver": "^7.7.1",
     "yaml": "^2.7.1",
     "zod": "^3.24.4"
@@ -58,5 +60,11 @@
     "tsx": "^4.19.4",
     "typescript": "^5.8.3",
     "vitest": "^3.1.3"
+  },
+  "pnpm": {
+    "overrides": {
+      "@actions/core": "^2.0.3",
+      "@actions/http-client": "^3.0.2"
+    }
   }
 }

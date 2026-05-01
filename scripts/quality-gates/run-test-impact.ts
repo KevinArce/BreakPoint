@@ -7,7 +7,7 @@ const strategy = (process.env['TEST_IMPACT_STRATEGY'] ?? 'auto') as Strategy
 const fallbackToFullSuite = process.env['TEST_IMPACT_FALLBACK'] !== 'false'
 const baseBranch = process.env['BASE_BRANCH'] ?? 'main'
 const outputDir = process.env['QUALITY_REPORT_DIR'] ?? 'quality-reports'
-const projectDir = process.cwd()
+const projectDir = process.env['PROJECT_DIR'] ?? process.cwd()
 
 runTestImpactGate({
   strategy,

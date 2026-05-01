@@ -14,7 +14,7 @@ async function findExistingComment(
 ): Promise<number | undefined> {
   const marker = getCommentMarker()
 
-  const { data: comments } = await context.octokit.issues.listComments(
+  const { data: comments } = await context.octokit.rest.issues.listComments(
     context.repo({
       issue_number: prNumber,
       per_page: 100,
@@ -43,14 +43,14 @@ export async function upsertComment(
   const existingCommentId = await findExistingComment(context, prNumber)
 
   if (existingCommentId !== undefined) {
-    await context.octokit.issues.updateComment(
+    await context.octokit.rest.issues.updateComment(
       context.repo({
         comment_id: existingCommentId,
         body,
       }),
     )
   } else {
-    await context.octokit.issues.createComment(
+    await context.octokit.rest.issues.createComment(
       context.repo({
         issue_number: prNumber,
         body,
@@ -73,14 +73,14 @@ export async function upsertErrorComment(
   const existingCommentId = await findExistingComment(context, prNumber)
 
   if (existingCommentId !== undefined) {
-    await context.octokit.issues.updateComment(
+    await context.octokit.rest.issues.updateComment(
       context.repo({
         comment_id: existingCommentId,
         body,
       }),
     )
   } else {
-    await context.octokit.issues.createComment(
+    await context.octokit.rest.issues.createComment(
       context.repo({
         issue_number: prNumber,
         body,

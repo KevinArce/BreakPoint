@@ -1,6 +1,6 @@
 import type { QualityGateResult } from '../../types.js'
 import { execFile } from 'node:child_process'
-import { writeFile } from 'node:fs/promises'
+import { mkdir, writeFile } from 'node:fs/promises'
 import { join } from 'node:path'
 
 interface DeadCodeFinding {
@@ -44,39 +44,19 @@ export async function runDeadCodeGate(options: {
     }
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error)
-    return {
+    const warning: QualityGateResult = {
       id: 'dead-code',
       name: 'Dead Code',
       status: 'warning',
       summary: `Failed to run ${tool}: ${message}`,
       annotations: [],
     }
+    await writeGateResult(outputDir, warning)
+    return warning
   }
 
   // Write report
-  const report = { tool, findings, count: findings.length }
-  await writeFile(
-    join(outputDir, 'quality-dead-code.json'),
-    JSON.stringify(
-      {
-        id: 'dead-code',
-        name: 'Dead Code',
-        status: determineStatus(findings.length, maxFindings, mode),
-        summary: `${findings.length} finding(s) from ${tool}`,
-        annotations: findings.slice(0, 50).map((f) => ({
-          path: f.file,
-          startLine: f.line,
-          message: `Unused ${f.type}: ${f.name}`,
-          level: mode === 'failure' ? ('failure' as const) : ('warning' as const),
-        })),
-      },
-      null,
-      2,
-    ),
-    'utf-8',
-  )
-
-  return {
+  const result: QualityGateResult = {
     id: 'dead-code',
     name: 'Dead Code',
     status: determineStatus(findings.length, maxFindings, mode),
@@ -88,6 +68,21 @@ export async function runDeadCodeGate(options: {
       level: mode === 'failure' ? ('failure' as const) : ('warning' as const),
     })),
   }
+
+  await writeGateResult(outputDir, result)
+  return result
+}
+
+async function writeGateResult(
+  outputDir: string,
+  result: QualityGateResult,
+): Promise<void> {
+  await mkdir(outputDir, { recursive: true })
+  await writeFile(
+    join(outputDir, 'quality-dead-code.json'),
+    JSON.stringify(result, null, 2),
+    'utf-8',
+  )
 }
 
 function determineStatus(

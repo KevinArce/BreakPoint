@@ -5,7 +5,7 @@ const npmAuditLevel = process.env['NPM_AUDIT_LEVEL'] ?? 'high'
 const snykEnabled = process.env['SNYK_ENABLED'] === 'true'
 const snykSeverity = process.env['SNYK_SEVERITY_THRESHOLD'] ?? 'high'
 const outputDir = process.env['QUALITY_REPORT_DIR'] ?? 'quality-reports'
-const projectDir = process.cwd()
+const projectDir = process.env['PROJECT_DIR'] ?? process.cwd()
 
 runDependencyRiskGate({
   npmAuditLevel,

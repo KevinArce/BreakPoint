@@ -30,11 +30,16 @@ jobs:
       - name: Detect package manager
         id: detect-pm
         run: |
-          if [ -f "pnpm-lock.yaml" ]; then
+          MANAGER=""
+          if [ -f "package.json" ]; then
+            MANAGER=$(node -e "const fs=require('fs'); const pkg=JSON.parse(fs.readFileSync('package.json','utf8')); const pm=typeof pkg.packageManager === 'string' ? pkg.packageManager.split('@')[0] : ''; if (['pnpm','yarn','npm'].includes(pm)) process.stdout.write(pm);")
+          fi
+
+          if [ "$MANAGER" = "pnpm" ] || { [ -z "$MANAGER" ] && [ -f "pnpm-lock.yaml" ]; }; then
             echo "manager=pnpm" >> $GITHUB_OUTPUT
             echo "install=pnpm install --frozen-lockfile" >> $GITHUB_OUTPUT
             echo "run=pnpm run" >> $GITHUB_OUTPUT
-          elif [ -f "yarn.lock" ]; then
+          elif [ "$MANAGER" = "yarn" ] || { [ -z "$MANAGER" ] && [ -f "yarn.lock" ]; }; then
             echo "manager=yarn" >> $GITHUB_OUTPUT
             echo "install=yarn install --frozen-lockfile" >> $GITHUB_OUTPUT
             echo "run=yarn run" >> $GITHUB_OUTPUT
@@ -66,30 +71,41 @@ jobs:
       - name: Read config
         id: config
         run: |
-          if [ -f ".github/api-contract.yml" ]; then
-            SCRIPT=$(yq -r '.["api-contract"].generate_script // "generate:openapi"' .github/api-contract.yml)
-            OUTPUT=$(yq -r '.["api-contract"].openapi_output // "openapi/schema.json"' .github/api-contract.yml)
-            API_PATH=$(yq -r '.["api-contract"].monorepo.api_path // "."' .github/api-contract.yml)
-            MONOREPO=$(yq -r '.["api-contract"].monorepo.enabled // "false"' .github/api-contract.yml)
-          else
-            SCRIPT="generate:openapi"
-            OUTPUT="openapi/schema.json"
-            API_PATH="."
-            MONOREPO="false"
-          fi
-          echo "script=$SCRIPT" >> $GITHUB_OUTPUT
-          echo "output=$OUTPUT" >> $GITHUB_OUTPUT
-          echo "api_path=$API_PATH" >> $GITHUB_OUTPUT
-          echo "monorepo=$MONOREPO" >> $GITHUB_OUTPUT
+          ruby <<'RUBY' >> "$GITHUB_OUTPUT"
+          require "yaml"
+
+          raw = File.exist?(".github/api-contract.yml") ? (YAML.load_file(".github/api-contract.yml") || {}) : {}
+          config = raw.fetch("api-contract", raw)
+          monorepo = config.fetch("monorepo", {}) || {}
+
+          script = config.fetch("generate_script", "generate:openapi")
+          output = config.fetch("openapi_output", "openapi/schema.json")
+          api_path = monorepo.fetch("api_path", "apps/api")
+          monorepo_enabled = monorepo.fetch("enabled", false)
+          schema_root = monorepo_enabled ? api_path : "."
+
+          puts "script=#{script}"
+          puts "output=#{output}"
+          puts "api_path=#{api_path}"
+          puts "monorepo=#{monorepo_enabled}"
+          puts "schema_root=#{schema_root}"
+          RUBY
 
       - name: Generate PR OpenAPI schema
-        working-directory: ${{ steps.config.outputs.monorepo == 'true' && steps.config.outputs.api_path || '.' }}
+        working-directory: ${{ steps.config.outputs.schema_root }}
         run: ${{ steps.detect-pm.outputs.run }} ${{ steps.config.outputs.script }}
 
       - name: Save PR schema
         run: |
           mkdir -p /tmp/api-contract
-          cp ${{ steps.config.outputs.output }} /tmp/api-contract/pr-schema.json
+          output="${{ steps.config.outputs.output }}"
+          schema_root="${{ steps.config.outputs.schema_root }}"
+          if [[ "$output" = /* ]]; then
+            source="$output"
+          else
+            source="$schema_root/$output"
+          fi
+          cp "$source" /tmp/api-contract/pr-schema.json
 
       - name: Checkout base branch
         uses: actions/checkout@v4
@@ -101,25 +117,36 @@ jobs:
         run: ${{ steps.detect-pm.outputs.install }}
 
       - name: Generate base OpenAPI schema
-        working-directory: ${{ steps.config.outputs.monorepo == 'true' && steps.config.outputs.api_path || '.' }}
+        working-directory: ${{ steps.config.outputs.schema_root }}
         run: ${{ steps.detect-pm.outputs.run }} ${{ steps.config.outputs.script }}
 
       - name: Save base schema
-        run: cp ${{ steps.config.outputs.output }} /tmp/api-contract/base-schema.json
+        run: |
+          output="${{ steps.config.outputs.output }}"
+          schema_root="${{ steps.config.outputs.schema_root }}"
+          if [[ "$output" = /* ]]; then
+            source="$output"
+          else
+            source="$schema_root/$output"
+          fi
+          cp "$source" /tmp/api-contract/base-schema.json
 
       - name: Checkout PR branch again
         uses: actions/checkout@v4
         with:
           clean: false
 
+      - name: Install dependencies (PR branch for quality gates)
+        run: ${{ steps.detect-pm.outputs.install }}
+
       - name: Run API Contract Probot
         uses: ./.github/actions/api-contract-probot
+        with:
+          pr-schema-path: /tmp/api-contract/pr-schema.json
+          base-schema-path: /tmp/api-contract/base-schema.json
+          quality-report-dir: quality-reports
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          APP_ID: ${{ secrets.APP_ID }}
-          PRIVATE_KEY: ${{ secrets.PRIVATE_KEY }}
-          PR_SCHEMA_PATH: /tmp/api-contract/pr-schema.json
-          BASE_SCHEMA_PATH: /tmp/api-contract/base-schema.json
 
       - name: Upload artifacts
         if: always()

@@ -16,7 +16,7 @@ async function readVersionFromFile(
   filePath: string,
 ): Promise<string | undefined> {
   try {
-    const response = await context.octokit.repos.getContent(
+    const response = await context.octokit.rest.repos.getContent(
       context.repo({
         path: filePath,
         ref,
@@ -62,9 +62,7 @@ export async function handlePullRequest(
 
   // Load and validate config
   const rawConfig: unknown = await context.config('api-contract.yml')
-  const configResult = parseConfig(
-    rawConfig ? { 'api-contract': rawConfig } : null,
-  )
+  const configResult = parseConfig(rawConfig)
 
   if (!configResult.success) {
     await failCheckRun(context, checkRunId, configResult.error)

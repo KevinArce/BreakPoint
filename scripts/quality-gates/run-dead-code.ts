@@ -5,7 +5,7 @@ const tool = (process.env['DEAD_CODE_TOOL'] ?? 'knip') as 'knip' | 'ts-prune'
 const maxFindings = parseInt(process.env['DEAD_CODE_MAX_FINDINGS'] ?? '0', 10)
 const mode = (process.env['DEAD_CODE_MODE'] ?? 'warning') as 'warning' | 'failure'
 const outputDir = process.env['QUALITY_REPORT_DIR'] ?? 'quality-reports'
-const projectDir = process.cwd()
+const projectDir = process.env['PROJECT_DIR'] ?? process.cwd()
 
 runDeadCodeGate({ tool, maxFindings, mode, outputDir, projectDir })
   .then((result) => {

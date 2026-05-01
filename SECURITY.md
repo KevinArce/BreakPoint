@@ -13,7 +13,7 @@ Only the latest release receives security updates.
 
 **Do not open a public issue for security vulnerabilities.**
 
-To report a security vulnerability, please email **security@breakpoint-app.dev** or use [GitHub's private vulnerability reporting](https://docs.github.com/en/code-security/security-advisories/guidance-on-reporting-and-writing-information-about-vulnerabilities/privately-reporting-a-security-vulnerability) if enabled on this repository.
+To report a security vulnerability, use [GitHub's private vulnerability reporting](https://docs.github.com/en/code-security/security-advisories/guidance-on-reporting-and-writing-information-about-vulnerabilities/privately-reporting-a-security-vulnerability) if enabled on this repository. If private reporting is not enabled yet, contact the repository maintainer directly before sharing details publicly.
 
 Include:
 
@@ -49,7 +49,7 @@ The following are out of scope:
 
 BreakPoint follows these security principles:
 
-- **Secrets are never logged.** The composite action masks `PRIVATE_KEY` using GitHub's `::add-mask::` mechanism. No code path prints secrets to stdout or stderr.
+- **Secrets are never logged.** Actions mode uses the built-in `GITHUB_TOKEN`. Standalone mode uses `PRIVATE_KEY` and `WEBHOOK_SECRET`; no code path should print these values to stdout or stderr.
 - **No telemetry.** The app does not phone home, collect analytics, or transmit data outside of the GitHub API.
 - **Minimal permissions.** The app requests only the permissions it needs: Checks (read/write), Contents (read), and Pull requests (read/write). See the [README](README.md#permissions-and-webhook-events) for a full explanation of why each permission is needed.
 - **Optional Snyk token.** The `SNYK_TOKEN` is only used when `quality_gates.dependency_risk.snyk.enabled` is `true`. If the token is missing, the gate is skipped with a warning — it never causes a build failure or logs the token's absence as an error.

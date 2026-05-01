@@ -117,7 +117,7 @@ async function findExistingCheckRun(
   context: ProbotContext,
   headSha: string,
 ): Promise<number | undefined> {
-  const response = await context.octokit.checks.listForRef(
+  const response = await context.octokit.rest.checks.listForRef(
     context.repo({
       ref: headSha,
       check_name: CHECK_RUN_NAME,
@@ -143,7 +143,7 @@ export async function startCheckRun(
   const existingId = await findExistingCheckRun(context, headSha)
 
   if (existingId !== undefined) {
-    await context.octokit.checks.update(
+    await context.octokit.rest.checks.update(
       context.repo({
         check_run_id: existingId,
         status: 'in_progress' as const,
@@ -157,7 +157,7 @@ export async function startCheckRun(
     return existingId
   }
 
-  const result = await context.octokit.checks.create(
+  const result = await context.octokit.rest.checks.create(
     context.repo({
       name: CHECK_RUN_NAME,
       head_sha: headSha,
@@ -185,7 +185,7 @@ export async function completeCheckRun(
   const annotations = buildAnnotations(report)
   const summary = buildSummary(report)
 
-  await context.octokit.checks.update(
+  await context.octokit.rest.checks.update(
     context.repo({
       check_run_id: checkRunId,
       status: 'completed' as const,
@@ -208,7 +208,7 @@ export async function failCheckRun(
   checkRunId: number,
   errorMessage: string,
 ): Promise<void> {
-  await context.octokit.checks.update(
+  await context.octokit.rest.checks.update(
     context.repo({
       check_run_id: checkRunId,
       status: 'completed' as const,
