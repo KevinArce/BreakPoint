@@ -68,8 +68,9 @@ runs:
         BASE_SCHEMA_PATH: ${{ inputs.base-schema-path || env.BASE_SCHEMA_PATH }}
         QUALITY_REPORT_DIR: ${{ inputs.quality-report-dir || env.QUALITY_REPORT_DIR }}
         LOG_LEVEL: ${{ inputs.log-level }}
-      run: npx tsx -e "
-        const { run } = require('@probot/adapter-github-actions');
-        const app = require('./src/index.ts').default;
-        run(app);
-      "
+      run: |
+        npx tsx -e "
+          const { run } = require('@probot/adapter-github-actions');
+          const app = require('./src/index.ts').default;
+          run(app);
+        "
