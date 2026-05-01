@@ -1,0 +1,42 @@
+// Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
+
+exports[`buildComment > matches snapshot for a full report 1`] = `
+"<!-- api-contract-report -->
+
+## 📋 API Contract Report
+
+| Category | Count |
+| --- | --- |
+| Breaking Changes | 1 |
+| Non-Breaking Changes | 1 |
+| Patch Changes | 1 |
+| Version Enforcement | ✅ Pass |
+| Override | — |
+
+### 🔴 Breaking Changes
+
+- \`DELETE /users/{id}\`: Removed endpoint
+
+### 🟡 Non-Breaking Changes
+
+- \`POST /users\`: Added optional field \`nickname\`
+
+### 🟢 Patch Changes
+
+- Updated API description
+
+### 📦 Version Enforcement
+
+✅ Version bump 1.0.0 → 2.0.0 satisfies required major bump.
+
+- Base: \`1.0.0\`
+- PR: \`2.0.0\`
+- Required bump: **major**
+- Actual bump: **major**
+
+### 🔍 Quality Gates
+
+| Gate | Status | Summary |
+| --- | --- | --- |
+| Dependency Risk | ✅ passed | No vulnerabilities found |"
+`;

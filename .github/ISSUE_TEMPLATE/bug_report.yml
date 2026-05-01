@@ -1,0 +1,110 @@
+name: Bug Report
+description: Report a bug in BreakPoint
+title: "[Bug]: "
+labels: ["bug"]
+assignees: []
+
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thank you for taking the time to report a bug. Please fill out the information below so we can investigate.
+
+  - type: textarea
+    id: description
+    attributes:
+      label: Bug Description
+      description: A clear and concise description of what the bug is.
+      placeholder: "When I open a PR with a breaking change, the Check Run shows 'success' instead of 'failure'."
+    validations:
+      required: true
+
+  - type: textarea
+    id: reproduction
+    attributes:
+      label: Steps to Reproduce
+      description: How can we reproduce this behavior?
+      placeholder: |
+        1. Create a PR that removes an API endpoint.
+        2. Wait for the API Contract check to complete.
+        3. Observe the Check Run conclusion.
+    validations:
+      required: true
+
+  - type: textarea
+    id: expected
+    attributes:
+      label: Expected Behavior
+      description: What should have happened?
+      placeholder: "The Check Run should show 'failure' with an annotation about the removed endpoint."
+    validations:
+      required: true
+
+  - type: textarea
+    id: actual
+    attributes:
+      label: Actual Behavior
+      description: What actually happened?
+      placeholder: "The Check Run shows 'success' and no breaking changes are listed in the PR comment."
+    validations:
+      required: true
+
+  - type: textarea
+    id: config
+    attributes:
+      label: Configuration
+      description: "Paste your `.github/api-contract.yml` (or state that you're using defaults)."
+      render: yaml
+      placeholder: |
+        api-contract:
+          generate_script: generate:openapi
+          enforcement:
+            breaking_requires_major: true
+    validations:
+      required: false
+
+  - type: input
+    id: version
+    attributes:
+      label: BreakPoint Version
+      description: "Which version of BreakPoint are you using? (Check `package.json` or the release tag.)"
+      placeholder: "0.1.0"
+    validations:
+      required: true
+
+  - type: input
+    id: node-version
+    attributes:
+      label: Node.js Version
+      description: "Output of `node --version`."
+      placeholder: "v20.11.0"
+    validations:
+      required: false
+
+  - type: dropdown
+    id: deployment
+    attributes:
+      label: Deployment Mode
+      description: How is BreakPoint deployed?
+      options:
+        - GitHub Actions (default)
+        - Standalone webhook server
+    validations:
+      required: true
+
+  - type: textarea
+    id: logs
+    attributes:
+      label: Relevant Logs
+      description: "Paste any relevant output from the GitHub Actions workflow log. **Redact secrets before pasting.**"
+      render: text
+    validations:
+      required: false
+
+  - type: textarea
+    id: additional
+    attributes:
+      label: Additional Context
+      description: Any other context, screenshots, or links that might help.
+    validations:
+      required: false

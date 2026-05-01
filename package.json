@@ -1,0 +1,62 @@
+{
+  "name": "breakpoint",
+  "version": "0.1.0",
+  "description": "TypeScript Probot GitHub App that enforces API contract integrity on pull requests",
+  "license": "MIT",
+  "private": true,
+  "type": "module",
+  "packageManager": "pnpm@9.15.4",
+  "engines": {
+    "node": ">=20"
+  },
+  "main": "dist/index.js",
+  "files": [
+    "dist/",
+    "scripts/",
+    "LICENSE",
+    "README.md"
+  ],
+  "keywords": [
+    "probot",
+    "github-app",
+    "openapi",
+    "api-contract",
+    "schema-diff",
+    "semver",
+    "github-actions",
+    "code-quality"
+  ],
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/YOUR_ORG/breakpoint.git"
+  },
+  "bugs": {
+    "url": "https://github.com/YOUR_ORG/breakpoint/issues"
+  },
+  "homepage": "https://github.com/YOUR_ORG/breakpoint#readme",
+  "scripts": {
+    "build": "tsc",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "test:coverage": "vitest run --coverage",
+    "lint": "tsc --noEmit",
+    "start": "tsx src/index.ts",
+    "generate:openapi": "tsx scripts/generate-openapi.ts"
+  },
+  "dependencies": {
+    "@probot/adapter-github-actions": "^4.0.0",
+    "openapi-diff": "^0.23.7",
+    "probot": "^13.4.3",
+    "semver": "^7.7.1",
+    "yaml": "^2.7.1",
+    "zod": "^3.24.4"
+  },
+  "devDependencies": {
+    "@types/node": "^22.15.3",
+    "@types/semver": "^7.7.0",
+    "tsx": "^4.19.4",
+    "typescript": "^5.8.3",
+    "vitest": "^3.1.3"
+  }
+}

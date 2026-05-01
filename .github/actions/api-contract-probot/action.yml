@@ -1,0 +1,75 @@
+name: 'API Contract Probot'
+description: 'Run the API Contract Probot app to validate OpenAPI schema changes'
+
+inputs:
+  pr-schema-path:
+    description: 'Path to the PR branch OpenAPI schema'
+    required: false
+    default: ''
+  base-schema-path:
+    description: 'Path to the base branch OpenAPI schema'
+    required: false
+    default: ''
+  quality-report-dir:
+    description: 'Directory containing quality gate reports'
+    required: false
+    default: ''
+  log-level:
+    description: 'Log level for the Probot app'
+    required: false
+    default: 'info'
+
+runs:
+  using: 'composite'
+  steps:
+    - name: Validate required env vars
+      shell: bash
+      run: |
+        if [ -z "$GITHUB_TOKEN" ]; then
+          echo "::error::GITHUB_TOKEN is required"
+          exit 1
+        fi
+        if [ -z "$APP_ID" ]; then
+          echo "::error::APP_ID is required"
+          exit 1
+        fi
+        if [ -z "$PRIVATE_KEY" ]; then
+          echo "::error::PRIVATE_KEY is required"
+          exit 1
+        fi
+        # Mask the private key to prevent accidental exposure
+        echo "::add-mask::$PRIVATE_KEY"
+
+    - name: Setup Node.js
+      uses: actions/setup-node@v4
+      with:
+        node-version: 20
+
+    - name: Install Probot app dependencies
+      shell: bash
+      working-directory: ${{ github.action_path }}/../../..
+      run: |
+        if [ -f "pnpm-lock.yaml" ]; then
+          npx pnpm install --frozen-lockfile
+        elif [ -f "yarn.lock" ]; then
+          yarn install --frozen-lockfile
+        else
+          npm ci
+        fi
+
+    - name: Run Probot app
+      shell: bash
+      working-directory: ${{ github.action_path }}/../../..
+      env:
+        GITHUB_TOKEN: ${{ env.GITHUB_TOKEN }}
+        APP_ID: ${{ env.APP_ID }}
+        PRIVATE_KEY: ${{ env.PRIVATE_KEY }}
+        PR_SCHEMA_PATH: ${{ inputs.pr-schema-path || env.PR_SCHEMA_PATH }}
+        BASE_SCHEMA_PATH: ${{ inputs.base-schema-path || env.BASE_SCHEMA_PATH }}
+        QUALITY_REPORT_DIR: ${{ inputs.quality-report-dir || env.QUALITY_REPORT_DIR }}
+        LOG_LEVEL: ${{ inputs.log-level }}
+      run: npx tsx -e "
+        const { run } = require('@probot/adapter-github-actions');
+        const app = require('./src/index.ts').default;
+        run(app);
+      "

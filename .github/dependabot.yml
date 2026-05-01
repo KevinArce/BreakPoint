@@ -1,0 +1,47 @@
+version: 2
+
+updates:
+  - package-ecosystem: "npm"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+    open-pull-requests-limit: 10
+    reviewers: []
+    labels:
+      - "dependencies"
+    commit-message:
+      prefix: "chore(deps)"
+    groups:
+      production:
+        patterns:
+          - "probot"
+          - "@probot/*"
+          - "openapi-diff"
+          - "semver"
+          - "yaml"
+          - "zod"
+        update-types:
+          - "minor"
+          - "patch"
+      development:
+        patterns:
+          - "@types/*"
+          - "typescript"
+          - "tsx"
+          - "vitest"
+        update-types:
+          - "minor"
+          - "patch"
+
+  - package-ecosystem: "github-actions"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+    open-pull-requests-limit: 5
+    labels:
+      - "dependencies"
+      - "github-actions"
+    commit-message:
+      prefix: "chore(deps)"
