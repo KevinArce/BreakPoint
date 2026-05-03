@@ -90,7 +90,7 @@ and expects:
 openapi/schema.json
 ```
 
-You can change both values in `.github/api-contract.yml`.
+This repository's starter `generate:openapi` script writes a minimal valid OpenAPI document so the workflow can run in CI. In a real API project, replace that script with your framework's OpenAPI generator or another deterministic script that emits the actual route, request, and response contract. You can change both the script name and output path in `.github/api-contract.yml`.
 
 ### 3. Add the workflow
 
@@ -394,6 +394,7 @@ All tests use [Vitest](https://vitest.dev/) and can be run without network acces
 
 - Ensure the `generate_script` (default: `generate:openapi`) exists in your `package.json` scripts.
 - Verify the script writes valid JSON to the `openapi_output` path (default: `openapi/schema.json`).
+- Keep schema generation deterministic in CI. Pin generator dependencies in `package.json` instead of installing tools dynamically with `npx`.
 - For monorepos, ensure `monorepo.api_path` points to the correct subdirectory.
 
 ### Version file not found

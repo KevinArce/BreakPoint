@@ -3,16 +3,16 @@
 /**
  * OpenAPI Schema Generator
  *
- * Detects Zod schemas or falls back to ts-json-schema-generator.
- * Writes output to the configured openapi_output path.
+ * Writes a deterministic starter OpenAPI document to the configured
+ * openapi_output path. API projects should replace this with a generator
+ * that emits their actual route, request, and response contract.
  *
  * Usage: tsx scripts/generate-openapi.ts [--output path] [--project-dir path]
  */
 
-import { writeFile, mkdir } from 'node:fs/promises'
+import { readFile, writeFile, mkdir } from 'node:fs/promises'
 import { existsSync } from 'node:fs'
-import { dirname, join } from 'node:path'
-import { execFile } from 'node:child_process'
+import { dirname, isAbsolute, join } from 'node:path'
 
 const args = process.argv.slice(2)
 
@@ -27,94 +27,77 @@ function getArg(name: string, defaultValue: string): string {
 const output = getArg('output', 'openapi/schema.json')
 const projectDir = getArg('project-dir', process.cwd())
 
-async function detectZodSchemas(): Promise<boolean> {
+interface PackageMetadata {
+  title: string
+  version: string
+  description?: string
+}
+
+function stringField(value: unknown): string | undefined {
+  return typeof value === 'string' && value.trim() !== '' ? value : undefined
+}
+
+async function readPackageMetadata(): Promise<PackageMetadata> {
   const pkgPath = join(projectDir, 'package.json')
-  if (!existsSync(pkgPath)) return false
+  if (!existsSync(pkgPath)) {
+    return {
+      title: 'API',
+      version: '0.0.0',
+    }
+  }
 
   try {
-    const { readFile } = await import('node:fs/promises')
     const raw = await readFile(pkgPath, 'utf-8')
     const pkg: unknown = JSON.parse(raw)
 
     if (typeof pkg === 'object' && pkg !== null) {
-      const deps = {
-        ...(pkg as Record<string, unknown>)['dependencies'] as Record<string, string> | undefined,
-        ...(pkg as Record<string, unknown>)['devDependencies'] as Record<string, string> | undefined,
+      const data = pkg as Record<string, unknown>
+      return {
+        title: stringField(data['name']) ?? 'API',
+        version: stringField(data['version']) ?? '0.0.0',
+        description: stringField(data['description']),
       }
-      return 'zod-to-openapi' in deps || '@asteasolutions/zod-to-openapi' in deps
     }
   } catch {
-    // Ignore parse errors
+    // Fall through to safe defaults.
   }
-  return false
+
+  return {
+    title: 'API',
+    version: '0.0.0',
+  }
 }
 
-async function generateViaZod(): Promise<string> {
-  return new Promise((resolve, reject) => {
-    execFile(
-      'npx',
-      ['tsx', '-e', `
-        const { OpenAPIRegistry, OpenApiGeneratorV3 } = require('@asteasolutions/zod-to-openapi');
-        // Projects with Zod schemas should replace this starter registry with
-        // imports from their own schema modules.
-        const registry = new OpenAPIRegistry();
-        const generator = new OpenApiGeneratorV3(registry.definitions);
-        const doc = generator.generateDocument({
-          openapi: '3.0.3',
-          info: { title: 'API', version: '0.0.0' },
-        });
-        console.log(JSON.stringify(doc, null, 2));
-      `],
-      { cwd: projectDir, maxBuffer: 10 * 1024 * 1024 },
-      (error, stdout) => {
-        if (error) {
-          reject(new Error(`Zod OpenAPI generation failed: ${error.message}`))
-          return
-        }
-        resolve(stdout)
-      },
-    )
-  })
-}
+async function generateStarterOpenApi(): Promise<string> {
+  const metadata = await readPackageMetadata()
+  const info = {
+    title: metadata.title,
+    version: metadata.version,
+    ...(metadata.description ? { description: metadata.description } : {}),
+  }
 
-async function generateViaTsJsonSchema(): Promise<string> {
-  return new Promise((resolve, reject) => {
-    execFile(
-      'npx',
-      ['ts-json-schema-generator', '--path', join(projectDir, 'src/**/*.ts'), '--type', '*'],
-      { cwd: projectDir, maxBuffer: 10 * 1024 * 1024 },
-      (error, stdout) => {
-        if (error) {
-          reject(new Error(`ts-json-schema-generator failed: ${error.message}`))
-          return
-        }
-        resolve(stdout)
-      },
-    )
-  })
+  return `${JSON.stringify({
+    openapi: '3.0.3',
+    info,
+    paths: {},
+    components: {
+      schemas: {},
+    },
+  }, null, 2)}\n`
 }
 
 async function main(): Promise<void> {
   console.log(`Generating OpenAPI schema to ${output}...`)
+  console.log('Writing starter OpenAPI document. Replace this script to emit your real API contract.')
 
-  let schema: string
-
-  const hasZod = await detectZodSchemas()
-  if (hasZod) {
-    console.log('Detected Zod schemas — using zod-to-openapi path.')
-    schema = await generateViaZod()
-  } else {
-    console.log('Falling back to ts-json-schema-generator.')
-    schema = await generateViaTsJsonSchema()
-  }
-
-  // Ensure output directory exists
-  const outputDir = dirname(output)
+  const schema = await generateStarterOpenApi()
+  const outputPath = isAbsolute(output) ? output : join(projectDir, output)
+  const outputDir = dirname(outputPath)
   if (!existsSync(outputDir)) {
     await mkdir(outputDir, { recursive: true })
   }
 
-  await writeFile(output, schema, 'utf-8')
+  await writeFile(outputPath, schema, 'utf-8')
   console.log(`Schema written to ${output}`)
 }
 
