@@ -102,6 +102,12 @@ After publishing a release, target repositories should reference the released ac
 uses: KevinArce/BreakPoint/.github/actions/api-contract-probot@v0.1.0
 ```
 
+If you are asking a coding agent to install BreakPoint in another TypeScript or Node.js repository, use [docs/CODING_AGENT_INTEGRATION_GUIDE.md](docs/CODING_AGENT_INTEGRATION_GUIDE.md).
+
+Use Node 24-compatible GitHub Action versions in target workflows. GitHub begins defaulting JavaScript actions to Node 24 on June 2, 2026, so current templates use action majors such as `actions/checkout@v5`, `actions/setup-node@v6`, `actions/cache@v5`, and `actions/upload-artifact@v6`.
+
+Because published action tags are fixed snapshots, publish a follow-up BreakPoint release after Node 24 workflow updates before rolling that version out broadly.
+
 ### 4. Create a PR with an API change
 
 Add or remove a route, change a request or response schema, then open a PR targeting `main`. BreakPoint will post a Check Run and a PR comment summarizing the change.
@@ -318,7 +324,7 @@ All quality gates are **optional** and **disabled by default** (except `dependen
 
 ### Prerequisites
 
-- Node.js ≥ 20
+- Node.js >= 20 locally; Node.js 24 is recommended for GitHub Actions workflows
 - pnpm (see `packageManager` in `package.json` for the exact version)
 
 ### Setup
